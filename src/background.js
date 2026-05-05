@@ -1,16 +1,38 @@
 // MV3 service worker. Handles LLM calls so content script bypasses CORS / API key exposure.
 import { PROMPTS } from './prompts.js';
 
-const DEFAULT_SETTINGS = {
+// Non-sensitive settings sync across devices; the API key lives in local
+// storage so it is not uploaded to Google's sync servers.
+const SYNC_DEFAULTS = {
   baseUrl: 'https://api.anthropic.com',
-  apiKey: '',
   model: 'claude-3-5-sonnet-latest',
   maxTokens: 1024,
 };
+const LOCAL_DEFAULTS = {
+  apiKey: '',
+};
+
+const REQUEST_TIMEOUT_MS = 30_000;
+
+// One-time migration: older builds wrote apiKey into chrome.storage.sync.
+// Move any such key to local and scrub it from sync.
+async function migrateApiKeyFromSync() {
+  const sync = await chrome.storage.sync.get(['apiKey']);
+  if (!sync.apiKey) return;
+  const local = await chrome.storage.local.get(['apiKey']);
+  if (!local.apiKey) {
+    await chrome.storage.local.set({ apiKey: sync.apiKey });
+  }
+  await chrome.storage.sync.remove('apiKey');
+}
+migrateApiKeyFromSync().catch(() => { /* best-effort */ });
 
 async function getSettings() {
-  const stored = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-  return { ...DEFAULT_SETTINGS, ...stored };
+  const [sync, local] = await Promise.all([
+    chrome.storage.sync.get(SYNC_DEFAULTS),
+    chrome.storage.local.get(LOCAL_DEFAULTS),
+  ]);
+  return { ...SYNC_DEFAULTS, ...sync, ...LOCAL_DEFAULTS, ...local };
 }
 
 async function callAnthropic({ system, user }) {
@@ -19,25 +41,43 @@ async function callAnthropic({ system, user }) {
     throw new Error('API key not set. Open extension options to configure.');
   }
   const url = `${s.baseUrl.replace(/\/+$/, '')}/v1/messages`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': s.apiKey,
-      'anthropic-version': '2023-06-01',
-      // Required for browser-origin requests on api.anthropic.com:
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: s.model,
-      max_tokens: s.maxTokens,
-      system,
-      messages: [{ role: 'user', content: user }],
-    }),
-  });
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), REQUEST_TIMEOUT_MS);
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': s.apiKey,
+        'anthropic-version': '2023-06-01',
+        // Required for browser-origin requests on api.anthropic.com:
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: s.model,
+        max_tokens: s.maxTokens,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+      signal: ac.signal,
+    });
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      throw new Error(`LLM request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    throw new Error(`Network error: ${e?.message || e}`);
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
-    throw new Error(`LLM error ${resp.status}: ${text.slice(0, 400)}`);
+    // Log full body to console for debugging; surface only a generic message
+    // so we don't echo back any key/account info that gateways sometimes embed.
+    console.warn('[x-helper] LLM error', resp.status, text);
+    throw new Error(`LLM error ${resp.status} ${resp.statusText || ''}`.trim());
   }
   const data = await resp.json();
   // Anthropic response: { content: [{type:'text', text:'...'}], ... }

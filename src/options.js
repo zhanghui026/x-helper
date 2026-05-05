@@ -1,18 +1,26 @@
-const DEFAULTS = {
+// Mirror the split in background.js: sync for non-sensitive settings,
+// local for the API key (so it's never uploaded to Google sync).
+const SYNC_DEFAULTS = {
   baseUrl: 'https://api.anthropic.com',
-  apiKey: '',
   model: 'claude-3-5-sonnet-latest',
   maxTokens: 1024,
+};
+const LOCAL_DEFAULTS = {
+  apiKey: '',
 };
 
 const $ = (id) => document.getElementById(id);
 
 async function load() {
-  const s = await chrome.storage.sync.get(DEFAULTS);
-  $('baseUrl').value = s.baseUrl || DEFAULTS.baseUrl;
-  $('apiKey').value = s.apiKey || '';
-  $('model').value = s.model || DEFAULTS.model;
-  $('maxTokens').value = s.maxTokens || DEFAULTS.maxTokens;
+  const [sync, local] = await Promise.all([
+    chrome.storage.sync.get(SYNC_DEFAULTS),
+    chrome.storage.local.get(LOCAL_DEFAULTS),
+  ]);
+  // Tolerate older installs where apiKey may still live in sync.
+  $('baseUrl').value = sync.baseUrl || SYNC_DEFAULTS.baseUrl;
+  $('apiKey').value = local.apiKey || sync.apiKey || '';
+  $('model').value = sync.model || SYNC_DEFAULTS.model;
+  $('maxTokens').value = sync.maxTokens || SYNC_DEFAULTS.maxTokens;
 }
 
 // Convert a base URL to a host-permission origin pattern.
@@ -40,19 +48,26 @@ async function ensureHostPermission(baseUrl) {
 }
 
 async function save() {
-  const baseUrl = $('baseUrl').value.trim() || DEFAULTS.baseUrl;
+  const baseUrl = $('baseUrl').value.trim() || SYNC_DEFAULTS.baseUrl;
   const granted = await ensureHostPermission(baseUrl);
   if (!granted) {
     showStatus('Permission for that host was denied. Cannot call the API.', true);
     return false;
   }
-  const data = {
+  const syncData = {
     baseUrl,
-    apiKey: $('apiKey').value.trim(),
-    model: $('model').value.trim() || DEFAULTS.model,
-    maxTokens: parseInt($('maxTokens').value, 10) || DEFAULTS.maxTokens,
+    model: $('model').value.trim() || SYNC_DEFAULTS.model,
+    maxTokens: parseInt($('maxTokens').value, 10) || SYNC_DEFAULTS.maxTokens,
   };
-  await chrome.storage.sync.set(data);
+  const localData = {
+    apiKey: $('apiKey').value.trim(),
+  };
+  await Promise.all([
+    chrome.storage.sync.set(syncData),
+    chrome.storage.local.set(localData),
+    // Scrub any legacy apiKey from sync (older installs wrote it there).
+    chrome.storage.sync.remove('apiKey').catch(() => {}),
+  ]);
   showStatus('Saved ✓', false);
   return true;
 }
