@@ -39,57 +39,54 @@
     }
   }
 
-  // Try to replace the editor contents directly. Draft.js (X's editor) ignores
-  // raw DOM mutation, but it *does* honor execCommand-driven beforeinput.
-  //
-  // Subtlety: we cannot select content via Range/selectNodeContents — that
-  // sets the DOM Selection on Draft-internal nodes without firing Draft's
-  // selectionchange handler, leaving Draft's own SelectionState pointing at
-  // stale nodes. After insertText, the text appears but the editor becomes
-  // unresponsive to further typing.
-  //
-  // Instead, use execCommand('selectAll'): the browser picks the correct
-  // range AND emits the selectionchange event Draft listens for, so Draft's
-  // SelectionState stays in sync. Then execCommand('insertText') runs through
-  // the same beforeinput path a real keystroke would.
+  // Replace the editor contents via a synthetic paste event. Draft.js (X's
+  // editor) ignores raw DOM mutation but accepts paste because its onPaste
+  // calls Modifier.replaceText, which atomically updates both ContentState
+  // and SelectionState in one EditorState push.
   function tryInsertText(editor, text) {
-    try {
-      editor.focus();
-      const before = editor.innerText || '';
-      // selectAll first so the paste replaces existing content rather than
-      // appending. The synchronous selectionchange this fires lets Draft
-      // update its SelectionState to "all selected" before paste runs.
-      document.execCommand('selectAll');
-
-      // Dispatch a paste ClipboardEvent with our text. This is the most
-      // reliable Draft.js entry point: Draft's onPaste calls
-      // Modifier.replaceText(contentState, selectionState, text), which
-      // produces a single new EditorState whose SelectionState is already
-      // collapsed at the end of inserted content. No post-insert lag — so
-      // immediate Backspace / arrow keys work straight away.
-      //
-      // Why not execCommand('insertText')? It does insert text via Draft's
-      // beforeinput path, but Draft's resulting SelectionState lags one
-      // render and any deletion key pressed before the next real keystroke
-      // becomes a no-op (user-reported regression).
-      const dt = new DataTransfer();
-      dt.setData('text/plain', text);
-      const evt = new ClipboardEvent('paste', {
-        clipboardData: dt,
-        bubbles: true,
-        cancelable: true,
-      });
-      editor.dispatchEvent(evt);
-
-      return new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          const after = editor.innerText || '';
-          resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
+    return new Promise((resolve) => {
+      try {
+        editor.focus();
+        const before = editor.innerText || '';
+        // selectAll updates the DOM selection synchronously, but Draft's
+        // own SelectionState is updated asynchronously via React's setState
+        // in response to the selectionchange event. If we dispatch paste
+        // immediately, Draft's onPaste reads its PRE-selectAll
+        // SelectionState — a collapsed cursor at the end of existing
+        // content — and the paste appends instead of replaces.
+        //
+        // Wait two rAFs (one for React to schedule, one to commit) so the
+        // SelectionState catches up to "all selected" before paste runs.
+        document.execCommand('selectAll');
+        const afterReactCommit = (cb) => requestAnimationFrame(() => requestAnimationFrame(cb));
+        afterReactCommit(() => {
+          try {
+            // Synthetic paste — Draft's onPaste calls Modifier.replaceText,
+            // which atomically sets ContentState (new text) AND
+            // SelectionState (collapsed at end of inserted content) in one
+            // EditorState push. No post-insert lag, so immediate Backspace
+            // / arrow keys work right away.
+            const dt = new DataTransfer();
+            dt.setData('text/plain', text);
+            editor.dispatchEvent(
+              new ClipboardEvent('paste', {
+                clipboardData: dt,
+                bubbles: true,
+                cancelable: true,
+              }),
+            );
+            requestAnimationFrame(() => {
+              const after = editor.innerText || '';
+              resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
+            });
+          } catch {
+            resolve(false);
+          }
         });
-      });
-    } catch {
-      return false;
-    }
+      } catch {
+        resolve(false);
+      }
+    });
   }
 
   // Deliver text to the editor. Returns:
