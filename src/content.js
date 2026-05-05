@@ -6,9 +6,6 @@
   const ATTACHED_FLAG = 'data-xh-attached';
 
   // ---------- helpers ----------
-  function $(sel, root = document) {
-    return root.querySelector(sel);
-  }
   function $$(sel, root = document) {
     return Array.from(root.querySelectorAll(sel));
   }
@@ -42,17 +39,47 @@
     }
   }
 
-  // Deliver text to the editor. We DO NOT mutate the editor DOM directly:
-  // X's compose box is Draft.js, which keeps its own React EditorState. Any
-  // DOM mutation we make is invisible to Draft, leaves the placeholder
-  // overlay visible, and — worst of all — Draft submits its (empty) state on
-  // post, throwing away our text.
-  //
-  // The only reliable cross-version path is: copy to clipboard and let the
-  // user paste with ⌘V. Their paste is a real, isTrusted event that Draft
-  // handles natively.
-  async function setEditorText(_editor, text) {
-    return await copyToClipboard(text);
+  // Try to replace the editor contents directly. Direct DOM mutation is a
+  // dead-end against Draft.js (X's editor) — it ignores anything that didn't
+  // come through its own beforeinput / paste plumbing. But two paths *do*
+  // round-trip through Draft:
+  //   1. document.execCommand('insertText', …) — fires beforeinput
+  //   2. dispatching a real-looking paste ClipboardEvent
+  // We try (1) first; it works on current X. If it silently no-ops (Draft
+  // rejected the inputType, or we're inside a non-Draft host page), the
+  // caller falls back to clipboard + manual ⌘V.
+  function tryInsertText(editor, text) {
+    try {
+      editor.focus();
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      const before = editor.innerText || '';
+      const ok = document.execCommand('insertText', false, text);
+      if (!ok) return false;
+      // Draft commits asynchronously; verify on next frame.
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          const after = editor.innerText || '';
+          resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
+        });
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  // Deliver text to the editor. Returns:
+  //   'inserted' — text is in the editor, user can post directly
+  //   'copied'   — clipboard set, user must press ⌘V
+  //   'failed'   — neither worked
+  async function setEditorText(editor, text) {
+    const inserted = await tryInsertText(editor, text);
+    if (inserted) return 'inserted';
+    const copied = await copyToClipboard(text);
+    return copied ? 'copied' : 'failed';
   }
 
   // Find the tweet being replied to. Heuristic: in reply modal/page, the tweet
@@ -163,10 +190,12 @@
         status.textContent = `Error: ${res?.error || 'unknown'}`;
         return;
       }
-      const copied = await setEditorText(editor, res.text);
-      status.textContent = copied
-        ? '✓ Copied — press ⌘V (or Ctrl+V) to paste'
-        : '✓ Done — but clipboard write failed';
+      const result = await setEditorText(editor, res.text);
+      status.textContent = {
+        inserted: '✓ Inserted',
+        copied: '✓ Copied — press ⌘V (or Ctrl+V) to paste',
+        failed: '✓ Done — but clipboard write failed',
+      }[result];
     }
 
     async function doSuggest() {
@@ -193,10 +222,12 @@
         item.textContent = s;
         item.title = 'Click to use';
         item.addEventListener('click', async () => {
-          const copied = await setEditorText(editor, s);
-          status.textContent = copied
-            ? '✓ Copied — press ⌘V (or Ctrl+V) to paste'
-            : '✓ Done — but clipboard write failed';
+          const result = await setEditorText(editor, s);
+          status.textContent = {
+            inserted: '✓ Inserted',
+            copied: '✓ Copied — press ⌘V (or Ctrl+V) to paste',
+            failed: '✓ Done — but clipboard write failed',
+          }[result];
           suggestList.innerHTML = '';
         });
         suggestList.appendChild(item);
@@ -293,7 +324,10 @@
   function scheduleScan() {
     if (scanScheduled) return;
     scanScheduled = true;
-    const run = () => { scanScheduled = false; scan(); };
+    const run = () => {
+      scanScheduled = false;
+      scan();
+    };
     if (typeof requestIdleCallback === 'function') {
       requestIdleCallback(run, { timeout: 500 });
     } else {
