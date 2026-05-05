@@ -59,18 +59,31 @@
       // ALWAYS selectAll, even when the editor looks empty. Draft renders a
       // placeholder block ('') whose presence is invisible to innerText, but
       // Draft's SelectionState still needs a selectionchange event to lock
-      // onto the new content. Without this, after Suggest inserts into an
-      // empty editor, Draft's selection model points at the old placeholder —
-      // subsequent backspace/arrow keys can't compute their target and the
-      // editor appears to accept input but ignore deletions.
+      // onto the new content.
       document.execCommand('selectAll');
       const ok = document.execCommand('insertText', false, text);
       if (!ok) return false;
-      // Draft commits asynchronously; verify on next frame.
+      // After insertText, the DOM is correct (content + cursor at end) but
+      // Draft's internal SelectionState lags one render: its onBeforeInput
+      // ran with the pre-insert (selectAll) range and its post-state hasn't
+      // been re-derived from the DOM yet. Symptom: immediate Backspace is a
+      // no-op; typing any real key fires Draft's keydown handler, which
+      // re-reads DOM Selection and re-syncs — after which Backspace works.
+      //
+      // Force the re-sync by dispatching the same events Draft listens on,
+      // after two rAFs (one for React to schedule, one for it to commit).
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
-          const after = editor.innerText || '';
-          resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
+          requestAnimationFrame(() => {
+            try {
+              editor.dispatchEvent(new Event('select', { bubbles: true }));
+              document.dispatchEvent(new Event('selectionchange'));
+            } catch {
+              /* nudge is best-effort */
+            }
+            const after = editor.innerText || '';
+            resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
+          });
         });
       });
     } catch {
