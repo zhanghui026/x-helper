@@ -180,8 +180,8 @@
     closeBtn.title = 'Collapse';
     closeBtn.textContent = '×';
 
-    const polishBtn = makeButton('✨ Polish', 'Polish English / 中翻英 (Cmd+Shift+P)');
-    const suggestBtn = makeButton('💡 Suggest', 'Generate 3 reply suggestions (Cmd+Shift+J)');
+    const polishBtn = makeButton('✨ Polish', 'Polish English / 中翻英');
+    const suggestBtn = makeButton('💡 Suggest', 'Generate 3 reply suggestions');
     const status = document.createElement('span');
     status.className = 'xh-status';
 
@@ -273,21 +273,11 @@
     polishBtn.addEventListener('click', doPolish);
     suggestBtn.addEventListener('click', doSuggest);
 
-    // Keyboard shortcuts when editor is focused.
-    editor.addEventListener('keydown', (e) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
-        e.preventDefault();
-        setCollapsed(false);
-        doPolish();
-      } else if (mod && e.shiftKey && (e.key === 'J' || e.key === 'j')) {
-        e.preventDefault();
-        setCollapsed(false);
-        doSuggest();
-      }
-    });
+    // Keyboard shortcuts are now declared in manifest.commands and forwarded
+    // from the background service worker; see editorActions / runtime.onMessage
+    // below.
 
-    return bar;
+    return { bar, doPolish, doSuggest, setCollapsed };
   }
 
   // Position the floating toolbar just below the editor, using its bounding box.
@@ -309,13 +299,24 @@
     bar.style.setProperty('--xh-editor-width', `${Math.round(r.width)}px`);
   }
 
+  // Tracks the last editor the user actually clicked into — used to dispatch
+  // keyboard-shortcut commands when several editors coexist (e.g. inline reply
+  // composer + reply modal). Map keyed by editor element to its action set.
+  let lastFocusedEditor = null;
+  const editorActions = new WeakMap();
+
   function attach(editor) {
     if (editor.getAttribute(ATTACHED_FLAG)) return;
     editor.setAttribute(ATTACHED_FLAG, '1');
 
-    const bar = makeToolbar(editor);
+    const { bar, doPolish, doSuggest, setCollapsed } = makeToolbar(editor);
     bar.classList.add('xh-floating');
     document.body.appendChild(bar);
+    editorActions.set(editor, { doPolish, doSuggest, setCollapsed });
+
+    editor.addEventListener('focus', () => {
+      lastFocusedEditor = editor;
+    });
 
     const update = () => positionBar(bar, editor);
     update();
@@ -337,6 +338,8 @@
         window.removeEventListener('scroll', update, true);
         window.removeEventListener('resize', update);
         clearInterval(fallback);
+        editorActions.delete(editor);
+        if (lastFocusedEditor === editor) lastFocusedEditor = null;
         return;
       }
       const r = editor.getBoundingClientRect();
@@ -347,6 +350,24 @@
       }
     }, 250);
   }
+
+  // Dispatch shortcut commands forwarded by the background service worker.
+  // Picks the last-focused editor; falls back to the first editor on the page
+  // if none has been focused yet (e.g. user pressed the shortcut before
+  // clicking into any compose box).
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type !== 'cmd-polish' && msg?.type !== 'cmd-suggest') return;
+    let editor = lastFocusedEditor;
+    if (!editor || !editor.isConnected) {
+      editor = $$('div[data-testid^="tweetTextarea_"][contenteditable="true"]')[0];
+    }
+    if (!editor) return;
+    const actions = editorActions.get(editor);
+    if (!actions) return;
+    actions.setCollapsed(false);
+    if (msg.type === 'cmd-polish') actions.doPolish();
+    else actions.doSuggest();
+  });
 
   function scan() {
     // X compose textarea has data-testid like tweetTextarea_0, tweetTextarea_0_label, etc.

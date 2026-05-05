@@ -27,10 +27,14 @@ Open <https://x.com>, focus a compose / reply box, and look for the toolbar that
 ✨ Polish    💡 Suggest    <status>
 ```
 
-Keyboard shortcuts (when the editor is focused):
+Keyboard shortcuts (active on any X / Twitter tab):
 
 - `Cmd/Ctrl + Shift + P` → Polish
-- `Cmd/Ctrl + Shift + J` → Suggest
+- `Cmd/Ctrl + Shift + L` → Suggest
+
+To rebind, visit `chrome://extensions/shortcuts` and find **X Helper**.
+The previous default `Cmd/Ctrl + Shift + J` was dropped because it
+conflicts with Chrome's DevTools Console shortcut on macOS.
 
 ## Configuration notes
 

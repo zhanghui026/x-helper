@@ -154,3 +154,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   })();
   return true; // keep channel open for async response
 });
+
+// Forward keyboard-shortcut commands to the active tab's content script.
+// chrome.commands.onCommand fires regardless of which page is focused, so we
+// only act if the resulting tab actually has our content script (silently
+// drop sendMessage failures from non-x.com tabs).
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (!tab?.id) return;
+  const map = { polish: 'cmd-polish', suggest: 'cmd-suggest' };
+  const type = map[command];
+  if (!type) return;
+  chrome.tabs.sendMessage(tab.id, { type }).catch(() => {
+    /* tab has no x-helper content script (not on x.com / twitter.com) */
+  });
+});

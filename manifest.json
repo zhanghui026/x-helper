@@ -37,5 +37,21 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     }
+  },
+  "commands": {
+    "polish": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "X Helper: Polish English / 中翻英"
+    },
+    "suggest": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "X Helper: Generate 3 reply suggestions"
+    }
   }
 }
