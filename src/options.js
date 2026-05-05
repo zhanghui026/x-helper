@@ -15,15 +15,46 @@ async function load() {
   $('maxTokens').value = s.maxTokens || DEFAULTS.maxTokens;
 }
 
+// Convert a base URL to a host-permission origin pattern.
+// e.g. "https://api.deepseek.com/anthropic" -> "https://api.deepseek.com/*"
+function originPatternFor(baseUrl) {
+  try {
+    const u = new URL(baseUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    return `${u.protocol}//${u.host}/*`;
+  } catch {
+    return null;
+  }
+}
+
+// Ensure we hold host permission for the configured base URL.
+// Returns true on success, false if user declined.
+async function ensureHostPermission(baseUrl) {
+  const origin = originPatternFor(baseUrl);
+  if (!origin) return false;
+  // api.anthropic.com is already in manifest.host_permissions; skip prompt.
+  if (origin === 'https://api.anthropic.com/*') return true;
+  const has = await chrome.permissions.contains({ origins: [origin] });
+  if (has) return true;
+  return await chrome.permissions.request({ origins: [origin] });
+}
+
 async function save() {
+  const baseUrl = $('baseUrl').value.trim() || DEFAULTS.baseUrl;
+  const granted = await ensureHostPermission(baseUrl);
+  if (!granted) {
+    showStatus('Permission for that host was denied. Cannot call the API.', true);
+    return false;
+  }
   const data = {
-    baseUrl: $('baseUrl').value.trim() || DEFAULTS.baseUrl,
+    baseUrl,
     apiKey: $('apiKey').value.trim(),
     model: $('model').value.trim() || DEFAULTS.model,
     maxTokens: parseInt($('maxTokens').value, 10) || DEFAULTS.maxTokens,
   };
   await chrome.storage.sync.set(data);
   showStatus('Saved ✓', false);
+  return true;
 }
 
 function showStatus(msg, isErr) {
@@ -55,8 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
   load();
   $('save').addEventListener('click', save);
   $('test').addEventListener('click', async () => {
-    await save();
-    test();
+    const ok = await save();
+    if (ok) test();
   });
   document.querySelectorAll('.presets button').forEach((b) => {
     b.addEventListener('click', () => {
