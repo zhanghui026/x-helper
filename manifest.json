@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "X Helper - LLM Polish & Reply",
+  "version": "0.1.0",
+  "description": "在 X (Twitter) 输入框旁加入 LLM 助手：润色英文 / 中翻英 / 快速回复建议。支持任何 Anthropic 兼容 API。",
+  "permissions": ["storage", "clipboardWrite"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://*.anthropic.com/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "X Helper Settings",
+    "default_popup": "src/popup.html"
+  }
+}
