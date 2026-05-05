@@ -56,11 +56,14 @@
     try {
       editor.focus();
       const before = editor.innerText || '';
-      // Only select-all if there's existing content to replace; on an empty
-      // editor selectAll is a no-op and we just insert at the cursor.
-      if (before.length > 0) {
-        document.execCommand('selectAll');
-      }
+      // ALWAYS selectAll, even when the editor looks empty. Draft renders a
+      // placeholder block ('') whose presence is invisible to innerText, but
+      // Draft's SelectionState still needs a selectionchange event to lock
+      // onto the new content. Without this, after Suggest inserts into an
+      // empty editor, Draft's selection model points at the old placeholder —
+      // subsequent backspace/arrow keys can't compute their target and the
+      // editor appears to accept input but ignore deletions.
+      document.execCommand('selectAll');
       const ok = document.execCommand('insertText', false, text);
       if (!ok) return false;
       // Draft commits asynchronously; verify on next frame.
