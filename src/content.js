@@ -56,34 +56,35 @@
     try {
       editor.focus();
       const before = editor.innerText || '';
-      // ALWAYS selectAll, even when the editor looks empty. Draft renders a
-      // placeholder block ('') whose presence is invisible to innerText, but
-      // Draft's SelectionState still needs a selectionchange event to lock
-      // onto the new content.
+      // selectAll first so the paste replaces existing content rather than
+      // appending. The synchronous selectionchange this fires lets Draft
+      // update its SelectionState to "all selected" before paste runs.
       document.execCommand('selectAll');
-      const ok = document.execCommand('insertText', false, text);
-      if (!ok) return false;
-      // After insertText, the DOM is correct (content + cursor at end) but
-      // Draft's internal SelectionState lags one render: its onBeforeInput
-      // ran with the pre-insert (selectAll) range and its post-state hasn't
-      // been re-derived from the DOM yet. Symptom: immediate Backspace is a
-      // no-op; typing any real key fires Draft's keydown handler, which
-      // re-reads DOM Selection and re-syncs — after which Backspace works.
+
+      // Dispatch a paste ClipboardEvent with our text. This is the most
+      // reliable Draft.js entry point: Draft's onPaste calls
+      // Modifier.replaceText(contentState, selectionState, text), which
+      // produces a single new EditorState whose SelectionState is already
+      // collapsed at the end of inserted content. No post-insert lag — so
+      // immediate Backspace / arrow keys work straight away.
       //
-      // Force the re-sync by dispatching the same events Draft listens on,
-      // after two rAFs (one for React to schedule, one for it to commit).
+      // Why not execCommand('insertText')? It does insert text via Draft's
+      // beforeinput path, but Draft's resulting SelectionState lags one
+      // render and any deletion key pressed before the next real keystroke
+      // becomes a no-op (user-reported regression).
+      const dt = new DataTransfer();
+      dt.setData('text/plain', text);
+      const evt = new ClipboardEvent('paste', {
+        clipboardData: dt,
+        bubbles: true,
+        cancelable: true,
+      });
+      editor.dispatchEvent(evt);
+
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            try {
-              editor.dispatchEvent(new Event('select', { bubbles: true }));
-              document.dispatchEvent(new Event('selectionchange'));
-            } catch {
-              /* nudge is best-effort */
-            }
-            const after = editor.innerText || '';
-            resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
-          });
+          const after = editor.innerText || '';
+          resolve(after !== before && after.includes(text.slice(0, Math.min(20, text.length))));
         });
       });
     } catch {
