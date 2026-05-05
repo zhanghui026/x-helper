@@ -39,24 +39,28 @@
     }
   }
 
-  // Try to replace the editor contents directly. Direct DOM mutation is a
-  // dead-end against Draft.js (X's editor) — it ignores anything that didn't
-  // come through its own beforeinput / paste plumbing. But two paths *do*
-  // round-trip through Draft:
-  //   1. document.execCommand('insertText', …) — fires beforeinput
-  //   2. dispatching a real-looking paste ClipboardEvent
-  // We try (1) first; it works on current X. If it silently no-ops (Draft
-  // rejected the inputType, or we're inside a non-Draft host page), the
-  // caller falls back to clipboard + manual ⌘V.
+  // Try to replace the editor contents directly. Draft.js (X's editor) ignores
+  // raw DOM mutation, but it *does* honor execCommand-driven beforeinput.
+  //
+  // Subtlety: we cannot select content via Range/selectNodeContents — that
+  // sets the DOM Selection on Draft-internal nodes without firing Draft's
+  // selectionchange handler, leaving Draft's own SelectionState pointing at
+  // stale nodes. After insertText, the text appears but the editor becomes
+  // unresponsive to further typing.
+  //
+  // Instead, use execCommand('selectAll'): the browser picks the correct
+  // range AND emits the selectionchange event Draft listens for, so Draft's
+  // SelectionState stays in sync. Then execCommand('insertText') runs through
+  // the same beforeinput path a real keystroke would.
   function tryInsertText(editor, text) {
     try {
       editor.focus();
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(editor);
-      sel.removeAllRanges();
-      sel.addRange(range);
       const before = editor.innerText || '';
+      // Only select-all if there's existing content to replace; on an empty
+      // editor selectAll is a no-op and we just insert at the cursor.
+      if (before.length > 0) {
+        document.execCommand('selectAll');
+      }
       const ok = document.execCommand('insertText', false, text);
       if (!ok) return false;
       // Draft commits asynchronously; verify on next frame.
