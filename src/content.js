@@ -105,15 +105,33 @@
   }
 
   // ---------- LLM bridge ----------
+  // The content script can outlive its background worker: when the extension
+  // is reloaded / updated, all open tabs keep the old content.js running but
+  // chrome.runtime is now disconnected. sendMessage then THROWS synchronously
+  // ("Extension context invalidated"), and a throw inside a `new Promise(...)`
+  // executor becomes an unhandled rejection.
   function send(type, payload) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type, payload }, (res) => {
-        if (chrome.runtime.lastError) {
-          resolve({ ok: false, error: chrome.runtime.lastError.message });
-        } else {
-          resolve(res);
-        }
-      });
+      // chrome.runtime.id is undefined once the context is invalidated — fast
+      // bail-out before attempting the call.
+      if (!chrome.runtime?.id) {
+        resolve({ ok: false, error: 'Extension was reloaded — refresh this tab to continue.' });
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage({ type, payload }, (res) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+          } else {
+            resolve(res);
+          }
+        });
+      } catch (e) {
+        const msg = /context invalidated/i.test(e?.message || '')
+          ? 'Extension was reloaded — refresh this tab to continue.'
+          : e?.message || String(e);
+        resolve({ ok: false, error: msg });
+      }
     });
   }
 
