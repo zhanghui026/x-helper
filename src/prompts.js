@@ -11,7 +11,9 @@ Rules:
 - Preserve @mentions, #hashtags, URLs, emojis exactly.
 - Do NOT add quotes, explanations, or multiple options. Output ONLY the final text.`,
     user: (text, context) => {
-      const ctx = context ? `\n\nContext (the tweet being replied to, for tone reference only — do not translate it):\n"""${context}"""` : '';
+      const ctx = context
+        ? `\n\nContext (the tweet being replied to, for tone reference only — do not translate it):\n"""${context}"""`
+        : '';
       return `Polish / translate the following for X:${ctx}\n\nInput:\n"""${text}"""`;
     },
   },
@@ -26,7 +28,9 @@ Rules:
 - Output format: exactly 3 replies, separated by a line containing only "===" (three equals signs).
 - Do NOT number them. Do NOT wrap in quotes. Do NOT add any prose, headers, or markdown.`,
     user: (tweet, userHint) => {
-      const hint = userHint ? `\n\nUser's draft / hint (incorporate the intent, may be Chinese — translate to English):\n"""${userHint}"""` : '';
+      const hint = userHint
+        ? `\n\nUser's draft / hint (incorporate the intent, may be Chinese — translate to English):\n"""${userHint}"""`
+        : '';
       return `Tweet to reply to:\n"""${tweet}"""${hint}\n\nOutput 3 replies separated by lines of "===".`;
     },
   },

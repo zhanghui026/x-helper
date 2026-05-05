@@ -10,13 +10,8 @@
     "128": "icons/icon-128.png"
   },
   "permissions": ["storage", "clipboardWrite"],
-  "host_permissions": [
-    "https://api.anthropic.com/*"
-  ],
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
+  "host_permissions": ["https://api.anthropic.com/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "src/background.js",
     "type": "module"

@@ -1,5 +1,5 @@
 .xh-toolbar {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   color: rgb(83, 100, 113);
 }
@@ -27,15 +27,21 @@
   font-size: 14px;
   line-height: 1;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: transform 120ms ease, border-color 120ms ease;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
 }
 .xh-chip:hover {
   transform: scale(1.08);
   border-color: rgb(29, 155, 240);
 }
 
-.xh-toolbar.xh-collapsed .xh-panel { display: none; }
-.xh-toolbar.xh-expanded .xh-chip { display: none; }
+.xh-toolbar.xh-collapsed .xh-panel {
+  display: none;
+}
+.xh-toolbar.xh-expanded .xh-chip {
+  display: none;
+}
 
 /* ----- expanded panel ----- */
 .xh-panel {
@@ -84,7 +90,10 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 .xh-btn:hover {
   background: rgba(29, 155, 240, 0.1);
@@ -129,7 +138,9 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .xh-toolbar { color: rgb(183, 187, 192); }
+  .xh-toolbar {
+    color: rgb(183, 187, 192);
+  }
   .xh-chip {
     background: rgba(22, 24, 28, 0.92);
     border-color: rgba(255, 255, 255, 0.18);

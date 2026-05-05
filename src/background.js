@@ -25,7 +25,9 @@ async function migrateApiKeyFromSync() {
   }
   await chrome.storage.sync.remove('apiKey');
 }
-migrateApiKeyFromSync().catch(() => { /* best-effort */ });
+migrateApiKeyFromSync().catch(() => {
+  /* best-effort */
+});
 
 async function getSettings() {
   const [sync, local] = await Promise.all([
@@ -109,7 +111,9 @@ function parseSuggestions(out) {
   try {
     const arr = JSON.parse(out);
     if (Array.isArray(arr) && arr.length) return arr.map(String).slice(0, 3);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // Fallback 2: extract quoted strings (handles JSON-ish output even with bad escaping).
   const quoted = [...out.matchAll(/"((?:[^"\\]|\\.){10,})"/g)].map((m) => m[1]);

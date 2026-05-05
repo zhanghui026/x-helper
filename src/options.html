@@ -6,7 +6,7 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
       body {
         max-width: 640px;
@@ -14,10 +14,22 @@
         padding: 0 20px;
         line-height: 1.5;
       }
-      h1 { font-size: 22px; margin-bottom: 4px; }
-      p.sub { color: #666; margin-top: 0; }
-      label { display: block; margin-top: 16px; font-weight: 600; font-size: 13px; }
-      input, select {
+      h1 {
+        font-size: 22px;
+        margin-bottom: 4px;
+      }
+      p.sub {
+        color: #666;
+        margin-top: 0;
+      }
+      label {
+        display: block;
+        margin-top: 16px;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      input,
+      select {
         width: 100%;
         padding: 8px 10px;
         font-size: 14px;
@@ -28,8 +40,13 @@
         background: transparent;
         color: inherit;
       }
-      .row { display: flex; gap: 12px; }
-      .row > div { flex: 1; }
+      .row {
+        display: flex;
+        gap: 12px;
+      }
+      .row > div {
+        flex: 1;
+      }
       button {
         margin-top: 20px;
         padding: 10px 18px;
@@ -46,15 +63,45 @@
         color: rgb(29, 155, 240);
         border: 1px solid rgb(29, 155, 240);
       }
-      .status { margin-top: 12px; font-size: 13px; color: #16a34a; }
-      .status.err { color: #dc2626; }
-      .hint { font-size: 12px; color: #888; margin-top: 4px; }
-      .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-      .presets button { margin: 0; padding: 4px 10px; font-size: 12px; background: #eee; color: #333; }
+      .status {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #16a34a;
+      }
+      .status.err {
+        color: #dc2626;
+      }
+      .hint {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+      }
+      .presets {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+      }
+      .presets button {
+        margin: 0;
+        padding: 4px 10px;
+        font-size: 12px;
+        background: #eee;
+        color: #333;
+      }
       @media (prefers-color-scheme: dark) {
-        body { background: #15202b; color: #e7e9ea; }
-        input, select { border-color: #334; }
-        .presets button { background: #222e3b; color: #e7e9ea; }
+        body {
+          background: #15202b;
+          color: #e7e9ea;
+        }
+        input,
+        select {
+          border-color: #334;
+        }
+        .presets button {
+          background: #222e3b;
+          color: #e7e9ea;
+        }
       }
     </style>
   </head>
@@ -62,7 +109,8 @@
     <h1>X Helper – Settings</h1>
     <p class="sub">Configure any Anthropic-compatible LLM endpoint.</p>
 
-    <label>API Base URL
+    <label
+      >API Base URL
       <input id="baseUrl" type="text" placeholder="https://api.anthropic.com" />
     </label>
     <div class="presets">
@@ -73,18 +121,21 @@
     </div>
     <div class="hint">Must implement <code>POST /v1/messages</code> in Anthropic format.</div>
 
-    <label>API Key
+    <label
+      >API Key
       <input id="apiKey" type="password" placeholder="sk-ant-..." />
     </label>
 
     <div class="row">
       <div>
-        <label>Model
+        <label
+          >Model
           <input id="model" type="text" placeholder="claude-3-5-sonnet-latest" />
         </label>
       </div>
       <div>
-        <label>Max Tokens
+        <label
+          >Max Tokens
           <input id="maxTokens" type="number" min="64" max="8192" />
         </label>
       </div>

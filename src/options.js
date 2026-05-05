@@ -93,7 +93,7 @@ async function test() {
         return;
       }
       showStatus('OK ✓ Sample reply: ' + res.text, false);
-    }
+    },
   );
 }
 

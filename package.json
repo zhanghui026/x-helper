@@ -1,0 +1,21 @@
+{
+  "name": "x-helper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension that adds LLM Polish & Reply helpers to X / Twitter.",
+  "scripts": {
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.{js,html,css}\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\" \"*.{json,md}\"",
+    "check": "npm run lint && npm run format:check",
+    "build": "web-ext build --source-dir . --artifacts-dir dist --overwrite-dest --ignore-files=node_modules package.json package-lock.json eslint.config.js .prettierrc.json .prettierignore"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "prettier": "^3.4.2",
+    "web-ext": "^8.3.0"
+  }
+}
